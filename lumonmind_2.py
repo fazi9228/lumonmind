@@ -162,6 +162,10 @@ if "user_info" not in st.session_state:
 if "show_therapist_options" not in st.session_state:
     st.session_state.show_therapist_options = False
 
+# Add chat start time tracking
+if "chat_start_time" not in st.session_state:
+    st.session_state.chat_start_time = None
+
 # Function to detect therapist/counselor requests
 def detect_therapist_request(user_message):
     """Detect if user is requesting to speak with a human therapist or counselor"""
@@ -515,18 +519,43 @@ def call_gemini_api(messages):
 def get_ai_response(messages):
     """Try each AI service in order until one succeeds"""
     
+    # Check if we're within the first 5 minutes of chat
+    is_first_5_minutes = False
+    if st.session_state.chat_start_time is not None:
+        chat_duration = datetime.now() - st.session_state.chat_start_time
+        is_first_5_minutes = chat_duration.total_seconds() < 300  # 5 minutes in seconds
+        print(f"DEBUG: Chat duration: {chat_duration.total_seconds()} seconds. First 5 minutes: {is_first_5_minutes}")
+    
+    # Create a copy of messages to modify
+    modified_messages = [msg.copy() if isinstance(msg, dict) else msg for msg in messages]
+    
+    # Add special instruction for first 5 minutes if applicable
+    if is_first_5_minutes:
+        # Find the system message and modify it
+        system_found = False
+        for i, msg in enumerate(modified_messages):
+            if isinstance(msg, dict) and msg.get("role") == "system":
+                # Add instruction to avoid counselor references unless crisis
+                modified_messages[i]["content"] += "\n\n## IMPORTANT TEMPORARY INSTRUCTION\nFor the first 5 minutes of this conversation, DO NOT suggest or refer the user to a counselor UNLESS they express crisis-level concerns (suicidal thoughts, self-harm, harm to others, or severe emotional distress). Focus on providing direct support and coping strategies yourself instead."
+                system_found = True
+                print("DEBUG: Added 5-minute instruction to system message")
+                break
+        
+        if not system_found:
+            print("DEBUG: No system message found to modify")
+    
     # First try Qwen (changed order)
-    response, source = call_qwen_api(messages)
+    response, source = call_qwen_api(modified_messages)
     if response:
         return response, source
     
     # Then try DeepSeek
-    response, source = call_deepseek_api(messages)
+    response, source = call_deepseek_api(modified_messages)
     if response:
         return response, source
     
     # Finally try Gemini
-    response, source = call_gemini_api(messages)
+    response, source = call_gemini_api(modified_messages)
     if response:
         return response, source
     
@@ -578,15 +607,6 @@ def perform_onboarding():
     with st.form("onboarding_form"):
         name = st.text_input("What would you like to be called?", key="name_input")
         
-        st.write("What brings you here today? (Select all that apply)")
-        anxiety = st.checkbox("Anxiety")
-        depression = st.checkbox("Depression")
-        stress = st.checkbox("Stress & Burnout")
-        relationships = st.checkbox("Relationship Issues")
-        self_esteem = st.checkbox("Self-esteem")
-        grief = st.checkbox("Grief & Loss")
-        other = st.text_input("Other concerns (please specify):")
-        
         language_preference = st.selectbox(
             "Language you might use", 
             ["English", "Hinglish/Romanized Hindi", "Other language"]
@@ -595,25 +615,9 @@ def perform_onboarding():
         submitted = st.form_submit_button("Start My Journey")
         
         if submitted:
-            concerns = []
-            if anxiety:
-                concerns.append("Anxiety")
-            if depression:
-                concerns.append("Depression")
-            if stress:
-                concerns.append("Stress & Burnout")
-            if relationships:
-                concerns.append("Relationship Issues")
-            if self_esteem:
-                concerns.append("Self-esteem")
-            if grief:
-                concerns.append("Grief & Loss")
-            if other:
-                concerns.append(other)
-            
             if name:
                 st.session_state.user_info["name"] = name
-                st.session_state.user_info["concerns"] = concerns
+                st.session_state.user_info["concerns"] = []  # Empty list as we're not collecting concerns
                 st.session_state.user_info["language"] = language_preference
                 st.session_state.user_info["onboarded"] = True
                 
@@ -621,16 +625,17 @@ def perform_onboarding():
                 system_message = SYSTEM_PROMPT
                 
                 # Add user info to the system message
-                if concerns:
-                    system_message += f"\n\nThe user's name is {name} and they're seeking help with: {', '.join(concerns)}."
-                else:
-                    system_message += f"\n\nThe user's name is {name}."
+                system_message += f"\n\nThe user's name is {name}."
                     
                 # Add language preference
                 system_message += f"\n\nThe user's preferred language is {language_preference}."
                 
                 # Add system message to the conversation
                 st.session_state.messages.append({"role": "system", "content": system_message})
+                
+                # Set chat start time when user completes onboarding
+                st.session_state.chat_start_time = datetime.now()
+                print(f"DEBUG: Chat start time set during onboarding: {st.session_state.chat_start_time}")
                 
                 # Add welcome message from assistant - English only regardless of language preference
                 greeting = f"Hello {name}! I'm here to support you with your mental health journey. How are you feeling today?"
@@ -669,6 +674,10 @@ def display_chat_interface():
         # Generate a new conversation ID
         st.session_state.conversation_id = str(uuid.uuid4())
         
+        # Reset chat start time for the new conversation
+        st.session_state.chat_start_time = datetime.now()
+        print(f"DEBUG: Chat start time reset on new conversation: {st.session_state.chat_start_time}")
+        
         # Add welcome message
         greeting = f"Hello {st.session_state.user_info['name']}! I'm here to continue supporting you. How are you feeling today?"
         st.session_state.messages.append({"role": "assistant", "content": greeting})
@@ -681,6 +690,11 @@ def display_chat_interface():
     
     # Process user input if provided
     if prompt:
+        # Set chat start time if this is the first message
+        if st.session_state.chat_start_time is None:
+            st.session_state.chat_start_time = datetime.now()
+            print(f"DEBUG: Chat start time set on first message: {st.session_state.chat_start_time}")
+        
         # Check if this is a therapist request
         if detect_therapist_request(prompt):
             handle_therapist_request(prompt)
@@ -783,6 +797,10 @@ def render_sidebar():
                 
                 # Generate a new conversation ID
                 st.session_state.conversation_id = str(uuid.uuid4())
+                
+                # Reset chat start time for the new conversation
+                st.session_state.chat_start_time = datetime.now()
+                print(f"DEBUG: Chat start time reset on Start New Conversation: {st.session_state.chat_start_time}")
                 
                 # Add welcome message
                 greeting = f"Hello {st.session_state.user_info['name']}! I'm here to continue supporting you. How are you feeling today?"
