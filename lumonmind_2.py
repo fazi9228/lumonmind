@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import time
 from datetime import datetime, timedelta, time
 import uuid
+import re
 
 # Silence stderr to prevent "No secrets found" messages
 old_stderr = sys.stderr
@@ -25,6 +26,54 @@ sys.stderr = old_stderr
 
 # Load environment variables
 load_dotenv()
+
+# Dictionary of keywords for topic detection
+TOPIC_KEYWORDS = {
+    'anxiety': [
+        'anxious', 'anxiety', 'worry', 'worrying', 'panic', 'stressed', 
+        'overthinking', 'nervous', 'fear', 'scared', 'tense', 'racing heart',
+        'cant breathe', 'chest tight', 'what if', 'overthink', 'catastrophe',
+        'afraid', 'terrified', 'phobia', 'worried', 'on edge', 'restless'
+    ],
+    'depression': [
+        'depressed', 'depression', 'sad', 'hopeless', 'unmotivated', 'worthless',
+        'tired all the time', 'no energy', 'no interest', 'empty', 'numb', 
+        'cant enjoy', 'no pleasure', 'pointless', 'dont care anymore',
+        'giving up', 'why bother', 'no future', 'meaningless', 'exhausted',
+        'no point', 'miserable', 'alone', 'cant get out of bed', 'apathy'
+    ],
+    'grief': [
+        'grief', 'loss', 'died', 'death', 'passed away', 'deceased', 'bereavement',
+        'lost my', 'funeral', 'missing someone', 'anniversary of', 'grieving',
+        'mourning', 'cope with loss', 'they\'re gone', 'widow', 'widower',
+        'remembrance', 'gone forever', 'never see them again', 'memorial'
+    ],
+    'sleep': [
+        'insomnia', 'cant sleep', 'trouble sleeping', 'tired', 'exhausted',
+        'wake up', 'nightmares', 'bad dreams', 'sleep schedule', 'oversleeping',
+        'cant fall asleep', 'lying awake', 'racing thoughts at night', 'sleep quality',
+        'keep waking up', 'early morning', 'bedtime', 'sleeping pills', 'fatigue'
+    ],
+    'relationship': [
+        'marriage', 'partner', 'boyfriend', 'girlfriend', 'spouse', 'relationship',
+        'breakup', 'divorce', 'arguing', 'communication', 'trust issues', 'cheating',
+        'ex', 'dating', 'love', 'commitment', 'jealous', 'affair', 'fighting', 
+        'unhappy together', 'toxic relationship', 'boundaries', 'controlling'
+    ],
+    'stress-burnout': [
+        'stress', 'burnout', 'overwhelmed', 'workload', 'overworked', 'pressure',
+        'too much', 'cant keep up', 'deadline', 'balance', 'time management',
+        'no time', 'exhaustion', 'drained', 'depleted', 'cant do it all',
+        'breaking point', 'overload', 'responsibilities', 'burden'
+    ],
+    'self-esteem': [
+        'hate myself', 'not good enough', 'failure', 'ugly', 'worthless',
+        'stupid', 'inadequate', 'incompetent', 'self-doubt', 'imposter',
+        'fraud', 'unlovable', 'unworthy', 'ashamed', 'body image', 'fat',
+        'unattractive', 'comparison', 'perfectionist', 'low confidence'
+    ]
+}
+
 
 # Constants
 DEEPSEEK_MODEL = "deepseek-chat"
@@ -165,6 +214,133 @@ if "show_therapist_options" not in st.session_state:
 # Add chat start time tracking
 if "chat_start_time" not in st.session_state:
     st.session_state.chat_start_time = None
+    
+    
+# File paths for extensions
+def get_extension_path(topic):
+    """Get file path for a topic extension"""
+    # Update this path based on your directory structure
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    extensions_dir = os.path.join(base_path, "extensions")
+    
+    # Create extensions directory if it doesn't exist
+    if not os.path.exists(extensions_dir):
+        os.makedirs(extensions_dir)
+    
+    return os.path.join(extensions_dir, f"{topic}_extension.md")
+
+
+def load_extension(topic):
+    """Load a specific topic extension content"""
+    try:
+        extension_path = get_extension_path(topic)
+        if os.path.exists(extension_path):
+            with open(extension_path, 'r', encoding='utf-8') as file:
+                return file.read()
+        else:
+            print(f"Extension file not found for topic: {topic}")
+            return None
+    except Exception as e:
+        print(f"Error loading extension for {topic}: {str(e)}")
+        return None
+
+
+def detect_mental_health_topics(messages, message_threshold=5, keyword_threshold=3):
+    """
+    Analyze conversation to detect mental health topics
+    
+    Args:
+        messages: List of message dictionaries with 'role' and 'content'
+        message_threshold: Number of most recent messages to analyze
+        keyword_threshold: Minimum keyword matches to identify a topic
+    
+    Returns:
+        List of detected topics ordered by relevance
+    """
+    # Extract recent user messages
+    user_messages = [msg['content'] for msg in messages 
+                    if msg.get('role') == 'user'][-message_threshold:]
+    
+    # Combine into one text for analysis
+    combined_text = ' '.join(user_messages).lower()
+    
+    # Count keyword matches for each topic
+    topic_counts = {}
+    for topic, keywords in TOPIC_KEYWORDS.items():
+        count = 0
+        for keyword in keywords:
+            # Use word boundary regex to find whole word matches
+            matches = re.findall(r'\b' + re.escape(keyword) + r'\b', combined_text)
+            count += len(matches)
+        topic_counts[topic] = count
+    
+    # Filter topics that meet the threshold
+    detected_topics = [topic for topic, count in topic_counts.items() 
+                      if count >= keyword_threshold]
+    
+    # Sort by relevance (keyword count)
+    detected_topics.sort(key=lambda x: topic_counts[x], reverse=True)
+    
+    # Log detection results
+    print(f"Topic detection results: {topic_counts}")
+    print(f"Detected topics: {detected_topics}")
+    
+    return detected_topics
+
+
+def apply_topic_extensions(messages, session_data=None):
+    """
+    Analyze messages and apply relevant topic extensions to the system prompt
+    
+    Args:
+        messages: List of message dictionaries
+        session_data: Optional session data dictionary for tracking
+    
+    Returns:
+        Modified messages list with updated system prompt
+    """
+    # Create a deep copy of messages to avoid modifying the original
+    modified_messages = [msg.copy() for msg in messages]
+    
+    # Detect topics in the conversation
+    detected_topics = detect_mental_health_topics(messages)
+    
+    # If no topics detected or no system message, return original
+    if not detected_topics:
+        return modified_messages
+    
+    # Find the system message
+    system_index = None
+    for i, msg in enumerate(modified_messages):
+        if msg.get('role') == 'system':
+            system_index = i
+            break
+    
+    if system_index is None:
+        print("No system message found to modify")
+        return modified_messages
+    
+    # Load extensions for detected topics (limit to top 2)
+    extensions = []
+    for topic in detected_topics[:2]:  # Limit to top 2 most relevant topics
+        extension_content = load_extension(topic)
+        if extension_content:
+            extensions.append(extension_content)
+    
+    # Update the system message with extensions
+    if extensions:
+        modified_messages[system_index]['content'] += "\n\n" + "\n\n".join(extensions)
+        
+        # Log the modification
+        print(f"Applied topic extensions: {detected_topics[:2]}")
+        
+        # Update session data if provided
+        if session_data is not None:
+            session_data['applied_extensions'] = detected_topics[:2]
+            session_data['extension_applied_at'] = datetime.now().isoformat()
+    
+    return modified_messages
+
 
 # Function to detect therapist/counselor requests
 def detect_therapist_request(user_message):
@@ -516,35 +692,59 @@ def call_gemini_api(messages):
             f.write(f"[{datetime.now().isoformat()}] Gemini Exception: {str(e)}\n")
         return None, None
 
-def get_ai_response(messages):
-    """Try each AI service in order until one succeeds"""
+def streamlit_implementation(messages):
+    """
+    Implementation for Streamlit version
     
-    # Check if we're within the first 5 minutes of chat
+    Args:
+        messages: The message list
+    
+    Returns:
+        Modified messages with appropriate extensions
+    """
+    import streamlit as st
+    
+    # Initialize extension tracking in session state if not present
+    if 'applied_extensions' not in st.session_state:
+        st.session_state.applied_extensions = []
+    
+    # Create session data dictionary for tracking
+    session_data = {
+        'applied_extensions': st.session_state.applied_extensions,
+        'extension_applied_at': st.session_state.get('extension_applied_at')
+    }
+    
+    # Apply extensions and update session state
+    modified_messages = apply_topic_extensions(messages, session_data)
+    
+    # Update session state with any changes
+    st.session_state.applied_extensions = session_data.get('applied_extensions', [])
+    st.session_state.extension_applied_at = session_data.get('extension_applied_at')
+    
+    return modified_messages
+
+def get_ai_response(messages):
+    # First apply 5-minute counselor rule
     is_first_5_minutes = False
     if st.session_state.chat_start_time is not None:
         chat_duration = datetime.now() - st.session_state.chat_start_time
         is_first_5_minutes = chat_duration.total_seconds() < 300  # 5 minutes in seconds
-        print(f"DEBUG: Chat duration: {chat_duration.total_seconds()} seconds. First 5 minutes: {is_first_5_minutes}")
     
     # Create a copy of messages to modify
     modified_messages = [msg.copy() if isinstance(msg, dict) else msg for msg in messages]
     
     # Add special instruction for first 5 minutes if applicable
     if is_first_5_minutes:
-        # Find the system message and modify it
-        system_found = False
+        # Find and modify system message
         for i, msg in enumerate(modified_messages):
             if isinstance(msg, dict) and msg.get("role") == "system":
-                # Add instruction to avoid counselor references unless crisis
-                modified_messages[i]["content"] += "\n\n## IMPORTANT TEMPORARY INSTRUCTION\nFor the first 5 minutes of this conversation, DO NOT suggest or refer the user to a counselor UNLESS they express crisis-level concerns (suicidal thoughts, self-harm, harm to others, or severe emotional distress). Focus on providing direct support and coping strategies yourself instead."
-                system_found = True
-                print("DEBUG: Added 5-minute instruction to system message")
+                modified_messages[i]["content"] += "\n\n## IMPORTANT TEMPORARY INSTRUCTION\nFor the first 5 minutes of this conversation, DO NOT suggest or refer the user to a counselor UNLESS they express crisis-level concerns. Focus on providing direct support and coping strategies yourself instead."
                 break
-        
-        if not system_found:
-            print("DEBUG: No system message found to modify")
     
-    # First try Qwen (changed order)
+    # Then apply topic extensions
+    modified_messages = streamlit_implementation(modified_messages)
+    
+    # Now call the API with the modified messages
     response, source = call_qwen_api(modified_messages)
     if response:
         return response, source
