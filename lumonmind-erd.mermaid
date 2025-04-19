@@ -1,0 +1,130 @@
+erDiagram
+    Users ||--o{ Sessions : "has"
+    Users ||--o{ Appointments : "books"
+    Users ||--o{ Feedback : "provides"
+    Users ||--o{ UserTopics : "has interest in"
+    Users ||--o{ AuditLogs : "generates"
+    Sessions ||--o{ Messages : "contains"
+    Sessions }o--o{ Topics : "has detected"
+    Specialists ||--o{ Appointments : "provides"
+    Specialists ||--o{ SpecialistAvailability : "sets"
+    Specialists ||--o{ SpecialistSpecializations : "has"
+    Specializations ||--o{ SpecialistSpecializations : "belongs to"
+    Topics ||--o{ UserTopics : "is interest of"
+    Topics ||--o{ Extensions : "has"
+    
+    Users {
+        int UserID PK
+        string Name
+        string Email
+        string Phone
+        string Password
+        string UserType
+        date JoinDate
+        date LastLoginDate
+        string PreferredLanguage
+    }
+    
+    Sessions {
+        int SessionID PK
+        int UserID FK
+        datetime StartTime
+        datetime EndTime
+        string SessionStatus
+        string LLMProviderUsed
+    }
+    
+    Messages {
+        int MessageID PK
+        int SessionID FK
+        string SenderType
+        text Content
+        datetime Timestamp
+        json DetectedTopics
+    }
+    
+    Topics {
+        int TopicID PK
+        string TopicName
+        string Description
+        json KeywordsList
+    }
+    
+    Specialists {
+        int SpecialistID PK
+        string Name
+        string Credentials
+        string ContactInfo
+        text Biography
+        string ProfilePicture
+        boolean IsActive
+        decimal HourlyRate
+    }
+    
+    Appointments {
+        int AppointmentID PK
+        int UserID FK
+        int SpecialistID FK
+        datetime AppointmentDateTime
+        datetime EndDateTime
+        string Status
+        string Type
+        text Notes
+        datetime CreatedAt
+        datetime UpdatedAt
+    }
+    
+    Specializations {
+        int SpecializationID PK
+        string Name
+        string Description
+    }
+    
+    SpecialistSpecializations {
+        int SpecialistID FK
+        int SpecializationID FK
+    }
+    
+    SpecialistAvailability {
+        int AvailabilityID PK
+        int SpecialistID FK
+        string DayOfWeek
+        time StartTime
+        time EndTime
+        boolean IsRecurring
+        date EffectiveDate
+        date ExpiryDate
+    }
+    
+    UserTopics {
+        int UserID FK
+        int TopicID FK
+        datetime Timestamp
+    }
+    
+    Feedback {
+        int FeedbackID PK
+        int UserID FK
+        string Category
+        int RelatedID
+        int Rating
+        text Comments
+        datetime Timestamp
+    }
+    
+    AuditLogs {
+        int LogID PK
+        datetime Timestamp
+        int UserID FK
+        string ActionType
+        string Description
+        string IPAddress
+    }
+    
+    Extensions {
+        int ExtensionID PK
+        int TopicID FK
+        text Content
+        string Version
+        datetime LastUpdated
+    }
