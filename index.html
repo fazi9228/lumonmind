@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LumonMind - Mental Health Support</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.5;
+            color: #374151;
+        }
+        .chat-bubble {
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            max-width: 80%;
+        }
+        .user-bubble {
+            background-color: #e5e7eb;
+            margin-left: auto;
+        }
+        .assistant-bubble {
+            background-color: #dbeafe;
+            margin-right: auto;
+        }
+        .typing-indicator {
+            display: inline-block;
+        }
+        .typing-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: #888;
+            border-radius: 50%;
+            margin-right: 3px;
+            animation: blink 1.4s infinite both;
+        }
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes blink {
+            0% { opacity: 0.1; }
+            20% { opacity: 1; }
+            100% { opacity: 0.1; }
+        }
+        .onboarding-screen {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .therapist-card {
+            border-radius: 0.5rem;
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+        .therapist-card:hover {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+        .therapist-card.selected {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px #93c5fd;
+        }
+        #debugConsole {
+            display: none;
+            background-color: #1e293b;
+            color: #10b981;
+            font-family: monospace;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            height: 150px;
+            overflow-y: auto;
+        }
+        .debug-message {
+            margin: 0.25rem 0;
+        }
+        .error-message {
+            color: #ef4444;
+        }
+        .success-message {
+            color: #10b981;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 300px;
+            background-color: #f8fafc;
+            padding: 1.5rem;
+            border-right: 1px solid #e2e8f0;
+            overflow-y: auto;
+        }
+        .main-content {
+            margin-left: 300px;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            margin-top: 0.25rem;
+            font-size: 1rem;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #374151;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-secondary:hover {
+            background-color: #d1d5db;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-blue-600">LumonMind</h1>
+            <p class="text-sm text-gray-600">Mental Health Support</p>
+        </div>
+        
+        <div id="userInfo" class="mb-6 hidden">
+            <div class="bg-blue-50 p-3 rounded-lg">
+                <p class="font-medium" id="userWelcome">Hello! 👋</p>
+                <p class="text-sm text-gray-600 mt-1" id="userLanguage">Language: English</p>
+            </div>
+        </div>
+        
+        <div class="mb-6">
+            <h3 class="font-medium mb-2">About LumonMind</h3>
+            <p class="text-sm text-gray-600">
+                LumonMind provides AI-assisted mental health support for everyone.
+                
+                Remember:
+                <br>• This is not a replacement for professional help
+                <br>• In crisis situations, please contact emergency services
+                <br>• Your conversations are private and secure
+            </p>
+        </div>
+        
+        <div id="aiStatusContainer" class="mb-6">
+            <h3 class="font-medium mb-2">AI Status</h3>
+            <div id="aiStatus" class="p-2 bg-green-100 text-green-800 rounded-md text-sm">
+                <i class="fas fa-check-circle mr-1"></i> Working normally
+            </div>
+        </div>
+        
+        <div id="sidebarActions" class="space-y-2 mb-6 hidden">
+            <button id="newChatSidebar" class="btn-primary">
+                <i class="fas fa-plus mr-2"></i> New Conversation
+            </button>
+            <button id="bookTherapistSidebar" class="btn-primary bg-indigo-600 hover:bg-indigo-700">
+                <i class="fas fa-user-md mr-2"></i> Book Therapist Appointment
+            </button>
+        </div>
+        
+        <div class="text-xs text-gray-500 mt-auto pt-4 border-t border-gray-200">
+            <p>© 2025 LumonMind</p>
+            <p>Version 1.0.0</p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- API Status Indicator -->
+        <div id="apiStatus" class="max-w-md mx-auto mb-4 p-2 rounded text-center">
+            <div class="flex items-center justify-center">
+                <span id="statusIcon" class="mr-2"></span>
+                <span id="statusMessage"></span>
+            </div>
+        </div>
+
+        <!-- Onboarding Screen (Initial) -->
+        <div id="onboardingScreen" class="onboarding-screen bg-white">
+            <h2 class="text-2xl font-semibold mb-2 text-center">Welcome to LumonMind 🧠</h2>
+            <p class="text-gray-600 mb-6 text-center">Your Safe Space for Mental Health Support</p>
+            
+            <p class="mb-6 text-center">
+                We're here to provide you with supportive guidance and a listening ear.
+                Please share a bit about yourself so we can better assist you.
+            </p>
+            
+            <form id="onboardingForm" class="space-y-6">
+                <div>
+                    <label for="userName" class="block text-sm font-medium text-gray-700">What would you like to be called?</label>
+                    <input type="text" id="userName" class="form-input" required>
+                </div>
+                
+                <div>
+                    <label for="language" class="block text-sm font-medium text-gray-700">Language you might use</label>
+                    <select id="language" class="form-input">
+                        <option value="English">English</option>
+                        <option value="Hindi">Hinglish/Romanized Hindi</option>
+                        <option value="Other">Other language</option>
+                    </select>
+                </div>
+                
+                <div class="pt-4">
+                    <button type="submit" class="btn-primary">
+                        Start My Journey
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Main Chat Interface (Hidden initially) -->
+        <div id="chatInterface" class="hidden max-w-4xl mx-auto">
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <!-- Chat Header -->
+                <div class="flex justify-between items-center px-6 py-4 bg-blue-600 text-white">
+                    <div class="flex items-center">
+                        <div class="text-xl font-semibold">Chat with LumonMind</div>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button id="newChatBtn" class="p-2 rounded hover:bg-blue-700 transition">
+                            <i class="fas fa-plus"></i> New Chat
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Chat Messages -->
+                <div id="chatMessages" class="h-96 overflow-y-auto p-6 flex flex-col space-y-4"></div>
+                
+                <!-- Typing Indicator -->
+                <div id="typingIndicator" class="px-6 py-2 hidden">
+                    <div class="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+                
+                <!-- Chat Input -->
+                <div class="border-t px-6 py-4">
+                    <form id="messageForm" class="flex space-x-2">
+                        <input type="text" id="messageInput" class="flex-grow border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="How are you feeling today?">
+                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Therapist Booking Modal (Hidden initially) -->
+        <div id="therapistModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+            <div class="bg-white rounded-lg shadow-lg p-6 max-w-2xl w-full max-h-screen overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Book a Session with a Professional</h2>
+                    <button id="closeModal" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="mb-6">
+                    <p class="text-gray-600">I'd be happy to help you schedule an appointment with a human therapist. Please fill out the following information to proceed with booking.</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <!-- Therapist Cards -->
+                    <div class="therapist-card p-4 cursor-pointer" data-therapist="Dr. Sarah Johnson">
+                        <div class="flex items-center mb-2">
+                            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
+                                <i class="fas fa-user-md"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold">Dr. Sarah Johnson</h3>
+                                <p class="text-sm text-gray-500">Licensed Psychologist</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600">Specializes in anxiety, depression, and stress management.</p>
+                    </div>
+                    
+                    <div class="therapist-card p-4 cursor-pointer" data-therapist="Dr. Michael Chen">
+                        <div class="flex items-center mb-2">
+                            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
+                                <i class="fas fa-user-md"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold">Dr. Michael Chen</h3>
+                                <p class="text-sm text-gray-500">Clinical Psychologist</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600">Specializes in relationship issues and chronic stress.</p>
+                    </div>
+                    
+                    <div class="therapist-card p-4 cursor-pointer" data-therapist="Dr. Amina Patel">
+                        <div class="flex items-center mb-2">
+                            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
+                                <i class="fas fa-user-md"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold">Dr. Amina Patel</h3>
+                                <p class="text-sm text-gray-500">Psychotherapist</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600">Specializes in grief, trauma recovery, and life transitions.</p>
+                    </div>
+                    
+                    <div class="therapist-card p-4 cursor-pointer" data-therapist="Dr. James Wilson">
+                        <div class="flex items-center mb-2">
+                            <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 mr-3">
+                                <i class="fas fa-user-md"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold">Dr. James Wilson</h3>
+                                <p class="text-sm text-gray-500">Counseling Psychologist</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600">Specializes in addiction recovery and self-esteem issues.</p>
+                    </div>
+                </div>
+                
+                <form id="appointmentForm" class="space-y-4">
+                    <div>
+                        <label for="fullName" class="block text-sm font-medium text-gray-700">Full Name</label>
+                        <input type="text" id="fullName" name="name" class="form-input" required>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                            <input type="email" id="email" name="email" class="form-input" required>
+                        </div>
+                        
+                        <div>
+                            <label for="phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
+                            <input type="tel" id="phone" name="phone" class="form-input" required>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="appointmentDate" class="block text-sm font-medium text-gray-700">Date</label>
+                            <input type="date" id="appointmentDate" name="appointment_date" class="form-input" required>
+                        </div>
+                        
+                        <div>
+                            <label for="appointmentTime" class="block text-sm font-medium text-gray-700">Time</label>
+                            <select id="appointmentTime" name="appointment_time" class="form-input" required>
+                                <option value="">Select a time</option>
+                                <option value="9:00 AM">9:00 AM</option>
+                                <option value="10:00 AM">10:00 AM</option>
+                                <option value="11:00 AM">11:00 AM</option>
+                                <option value="1:00 PM">1:00 PM</option>
+                                <option value="2:00 PM">2:00 PM</option>
+                                <option value="3:00 PM">3:00 PM</option>
+                                <option value="4:00 PM">4:00 PM</option>
+                                <option value="5:00 PM">5:00 PM</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label for="appointmentType" class="block text-sm font-medium text-gray-700">Appointment Type</label>
+                        <select id="appointmentType" name="appointment_type" class="form-input" required>
+                            <option value="Video">Video Session</option>
+                            <option value="Phone">Phone Session</option>
+                            <option value="InPerson">In-Person Session</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label for="appointmentReason" class="block text-sm font-medium text-gray-700">Reason for Appointment (Optional)</label>
+                        <textarea id="appointmentReason" name="reason" class="form-input" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Areas of Expertise</label>
+                            <div class="mt-2 grid grid-cols-2 gap-2">
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="expertise" value="Anxiety" class="rounded text-blue-600">
+                                    <span class="ml-2 text-sm">Anxiety</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="expertise" value="Depression" class="rounded text-blue-600">
+                                    <span class="ml-2 text-sm">Depression</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="expertise" value="Trauma" class="rounded text-blue-600">
+                                    <span class="ml-2 text-sm">Trauma</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox" name="expertise" value="Relationships" class="rounded text-blue-600">
+                                    <span class="ml-2 text-sm">Relationships</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Therapist Gender Preference</label>
+                            <div class="mt-2 space-y-2">
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="gender_preference" value="No Preference" class="rounded-full text-blue-600" checked>
+                                    <span class="ml-2 text-sm">No Preference</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="gender_preference" value="Female" class="rounded-full text-blue-600">
+                                    <span class="ml-2 text-sm">Female</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="gender_preference" value="Male" class="rounded-full text-blue-600">
+                                    <span class="ml-2 text-sm">Male</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" id="selectedTherapist" name="selectedTherapist" value="">
+                    
+                    <div class="flex justify-between mt-6">
+                        <button type="button" id="continueChat" class="btn-secondary">
+                            Continue chatting with AI assistant
+                        </button>
+                        <button type="submit" class="btn-primary max-w-xs">
+                            Book Appointment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Debug Console (Hidden) -->
+        <div id="debugConsole" class="max-w-4xl mx-auto mt-4">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-sm text-gray-300">Debug Console</h3>
+                <button id="clearDebug" class="text-xs text-gray-400 hover:text-white">Clear</button>
+            </div>
+            <div id="debugLog"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let sessionId = null;
+        const apiBaseUrl = '/api'; // Use relative URL to avoid CORS issues
+        
+        // Enable debug mode - set to true to show debug console
+        const debugMode = true;
+        
+        // DOM Elements
+        const onboardingScreen = document.getElementById('onboardingScreen');
+        const chatInterface = document.getElementById('chatInterface');
+        const onboardingForm = document.getElementById('onboardingForm');
+        const chatMessages = document.getElementById('chatMessages');
+        const messageForm = document.getElementById('messageForm');
+        const messageInput = document.getElementById('messageInput');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const newChatBtn = document.getElementById('newChatBtn');
+        const newChatSidebar = document.getElementById('newChatSidebar');
+        const apiStatus = document.getElementById('apiStatus');
+        const therapistModal = document.getElementById('therapistModal');
+        const closeModal = document.getElementById('closeModal');
+        const appointmentForm = document.getElementById('appointmentForm');
+        const therapistCards = document.querySelectorAll('.therapist-card');
+        const selectedTherapist = document.getElementById('selectedTherapist');
+        const debugConsole = document.getElementById('debugConsole');
+        const debugLog = document.getElementById('debugLog');
+        const clearDebug = document.getElementById('clearDebug');
+        const continueChat = document.getElementById('continueChat');
+        const userInfo = document.getElementById('userInfo');
+        const userWelcome = document.getElementById('userWelcome');
+        const userLanguage = document.getElementById('userLanguage');
+        const bookTherapistSidebar = document.getElementById('bookTherapistSidebar');
+        const sidebarActions = document.getElementById('sidebarActions');
+        const aiStatus = document.getElementById('aiStatus');
+        
+        // Debug logging function
+        function debug(message, type = 'info') {
+            if (!debugMode) return;
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+            
+            // Show debug console if it's not already visible
+            debugConsole.style.display = 'block';
+            
+            // Create log element
+            const logEl = document.createElement('div');
+            logEl.className = `debug-message ${type === 'error' ? 'error-message' : type === 'success' ? 'success-message' : ''}`;
+            logEl.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            
+            // Add to debug log
+            debugLog.appendChild(logEl);
+            
+            // Auto-scroll to bottom
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+        
+        // Clear debug log
+        clearDebug.addEventListener('click', () => {
+            debugLog.innerHTML = '';
+        });
+        
+        // Check API health on load
+        document.addEventListener('DOMContentLoaded', async () => {
+            debug('Application started');
+            try {
+                const response = await fetch(`${apiBaseUrl}/health`);
+                debug(`API health check status: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`API health check failed with status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                debug(`API health check response: ${JSON.stringify(data)}`);
+                
+                if (data.status === 'ok') {
+                    updateApiStatus('online', 'API is online and ready');
+                    
+                    // Check for available services
+                    const availableServices = Object.entries(data.services)
+                        .filter(([_, isAvailable]) => isAvailable)
+                        .map(([name, _]) => name);
+                    
+                    if (availableServices.length === 0 && !data.services.mock_mode) {
+                        updateApiStatus('warning', 'No AI services available. Using mock mode.');
+                        updateAIStatus('warning', 'Running in mock mode');
+                    } else if (data.services.mock_mode) {
+                        updateApiStatus('warning', 'Running in mock API mode');
+                        updateAIStatus('warning', 'Running in mock mode');
+                    } else {
+                        const servicesList = availableServices.join(', ');
+                        updateApiStatus('online', `Connected: ${servicesList}`);
+                        updateAIStatus('online', 'Connected to AI services');
+                    }
+                    
+                    // Create a new session now that we know the API is working
+                    await createNewSession();
+                } else {
+                    updateApiStatus('offline', 'API health check failed');
+                    updateAIStatus('error', 'API connection issue');
+                    debug('API health check failed: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                console.error('API health check error:', error);
+                updateApiStatus('offline', 'Cannot connect to API server');
+                updateAIStatus('error', 'Cannot connect to API');
+                debug('API health check error: ' + error.message, 'error');
+                
+                // Show a clear error message to the user
+                alert('Cannot connect to the server. Please check that the Flask application is running and refresh the page.');
+            }
+            
+            // Set min date for appointment to tomorrow
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+            document.getElementById('appointmentDate').min = tomorrowStr;
+            document.getElementById('appointmentDate').value = tomorrowStr;
+        });
+        
+        // Update AI status in sidebar
+        function updateAIStatus(status, message) {
+            aiStatus.className = 'p-2 rounded-md text-sm';
+            
+            switch (status) {
+                case 'online':
+                    aiStatus.classList.add('bg-green-100', 'text-green-800');
+                    aiStatus.innerHTML = `<i class="fas fa-check-circle mr-1"></i> ${message}`;
+                    break;
+                case 'offline':
+                    aiStatus.classList.add('bg-red-100', 'text-red-800');
+                    aiStatus.innerHTML = `<i class="fas fa-times-circle mr-1"></i> ${message}`;
+                    break;
+                case 'warning':
+                case 'error':
+                    aiStatus.classList.add('bg-yellow-100', 'text-yellow-800');
+                    aiStatus.innerHTML = `<i class="fas fa-exclamation-triangle mr-1"></i> ${message}`;
+                    break;
+            }
+        }
+        
+        // Create a new session
+        async function createNewSession() {
+            debug('Creating new session...');
+            try {
+                const response = await fetch(`${apiBaseUrl}/session/new`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                debug(`Session creation status: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to create session: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                debug(`Session creation response: ${JSON.stringify(data)}`);
+                
+                if (data.status === 'success') {
+                    sessionId = data.session_id;
+                    debug('Session created successfully: ' + sessionId, 'success');
+                    localStorage.setItem('lumonmind_session_id', sessionId);
+                } else {
+                    debug('Failed to create session: ' + data.message, 'error');
+                    alert('Failed to create chat session: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Error creating session:', error);
+                debug('Error creating session: ' + error.message, 'error');
+                alert('Connection error. Please check that the server is running and refresh the page.');
+            }
+        }
+        
+        // Update API status indicator
+        function updateApiStatus(status, message) {
+            apiStatus.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'bg-yellow-100');
+            
+            switch (status) {
+                case 'online':
+                    apiStatus.classList.add('bg-green-100', 'text-green-800');
+                    apiStatus.innerHTML = `<i class="fas fa-check-circle mr-2"></i> ${message}`;
+                    break;
+                case 'offline':
+                    apiStatus.classList.add('bg-red-100', 'text-red-800');
+                    apiStatus.innerHTML = `<i class="fas fa-times-circle mr-2"></i> ${message}`;
+                    break;
+                case 'warning':
+                case 'error':
+                    apiStatus.classList.add('bg-yellow-100', 'text-yellow-800');
+                    apiStatus.innerHTML = `<i class="fas fa-exclamation-triangle mr-2"></i> ${message}`;
+                    break;
+            }
+        }
+        
+        // Handle onboarding form submission
+        onboardingForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            debug('Onboarding form submitted');
+            
+            const userName = document.getElementById('userName').value.trim();
+            const language = document.getElementById('language').value;
+            
+            if (!userName) {
+                alert('Please enter your name');
+                return;
+            }
+            
+            if (!sessionId) {
+                debug('No active session ID found', 'error');
+                alert('No active session. Please refresh the page to reconnect to the server.');
+                return;
+            }
+            
+            debug(`Sending onboarding data: name=${userName}, language=${language}, sessionId=${sessionId}`);
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/session/${sessionId}/onboard`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: userName,
+                        language: language
+                    })
+                });
+                
+                debug(`Onboarding response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Onboarding failed with status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                debug(`Onboarding response: ${JSON.stringify(data)}`);
+                
+                if (data.status === 'success') {
+                    // Show chat interface and hide onboarding
+                    onboardingScreen.classList.add('hidden');
+                    chatInterface.classList.remove('hidden');
+                    
+                    // Update user info in sidebar
+                    userInfo.classList.remove('hidden');
+                    userWelcome.textContent = `Hello, ${userName}! 👋`;
+                    userLanguage.textContent = `Language: ${language}`;
+                    
+                    // Show sidebar actions
+                    sidebarActions.classList.remove('hidden');
+                    
+                    debug('Transition to chat interface successful', 'success');
+                    
+                    // Add welcome message from assistant
+                    addMessage('assistant', data.greeting);
+                    
+                    // Scroll to bottom of chat
+                    scrollToBottom();
+                } else {
+                    debug(`Onboarding failed: ${data.message}`, 'error');
+                    alert(`Error: ${data.message}`);
+                }
+            } catch (error) {
+                console.error('Onboarding error:', error);
+                debug('Onboarding error: ' + error.message, 'error');
+                alert('Failed to connect to server. Please check your connection and try again.');
+            }
+        });
+        
+        // Handle message form submission
+        messageForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const userMessage = messageInput.value.trim();
+            if (!userMessage) return;
+            
+            debug(`Sending message: ${userMessage}`);
+            
+            // Clear input
+            messageInput.value = '';
+            
+            // Add user message to chat
+            addMessage('user', userMessage);
+            
+            // Show typing indicator
+            typingIndicator.classList.remove('hidden');
+            
+            // Send message to API
+            try {
+                debug(`Sending chat request to API: sessionId=${sessionId}, message=${userMessage}`);
+                const response = await fetch(`${apiBaseUrl}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        message: userMessage
+                    })
+                });
+                
+                debug(`Chat response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Chat request failed with status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                debug(`Chat response: ${JSON.stringify(data).substring(0, 200)}...`);
+                
+                // Hide typing indicator
+                typingIndicator.classList.add('hidden');
+                
+                if (data.status === 'success') {
+                    debug(`AI response received from ${data.model_used}`, 'success');
+                    
+                    if (data.show_therapist_options) {
+                        // Show therapist booking modal
+                        therapistModal.classList.remove('hidden');
+                        // Add assistant message
+                        addMessage('assistant', data.message);
+                    } else {
+                        // Add assistant response to chat
+                        addMessage('assistant', data.message);
+                    }
+                } else {
+                    debug(`Chat response error: ${data.error}`, 'error');
+                    // Add error message
+                    addMessage('assistant', `Sorry, I encountered an error: ${data.error}`);
+                }
+            } catch (error) {
+                console.error('Send message error:', error);
+                debug('Send message error: ' + error.message, 'error');
+                typingIndicator.classList.add('hidden');
+                addMessage('assistant', 'Sorry, I cannot connect to the server right now. Please check your connection and try again.');
+            }
+            
+            // Scroll to bottom of chat
+            scrollToBottom();
+        });
+        
+        // Add message to chat
+        function addMessage(role, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-bubble ${role === 'user' ? 'user-bubble' : 'assistant-bubble'}`;
+            
+            // Convert newlines to <br> tags
+            const formattedContent = content.replace(/\n/g, '<br>');
+            messageDiv.innerHTML = formattedContent;
+            
+            chatMessages.appendChild(messageDiv);
+            debug(`Added ${role} message to chat`);
+            scrollToBottom();
+        }
+        
+        // Scroll to bottom of chat
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Handle new chat button (both in header and sidebar)
+        function startNewChat() {
+            if (!confirm('Start a new conversation? This will clear the current chat.')) {
+                return;
+            }
+            
+            debug('Starting new chat...');
+            
+            fetch(`${apiBaseUrl}/session/${sessionId}/end`, {
+                method: 'POST'
+            })
+            .then(response => {
+                debug(`New chat response status: ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`New chat request failed with status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                debug(`New chat response: ${JSON.stringify(data)}`);
+                
+                if (data.status === 'success') {
+                    // Clear chat messages
+                    chatMessages.innerHTML = '';
+                    debug('Chat cleared successfully', 'success');
+                    
+                    // Add welcome message
+                    addMessage('assistant', data.greeting);
+                } else {
+                    debug(`New chat error: ${data.message}`, 'error');
+                    alert(`Error: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error('New chat error:', error);
+                debug('New chat error: ' + error.message, 'error');
+                alert('Failed to start new chat. Please check your connection.');
+            });
+        }
+        
+        // Attach new chat handlers
+        newChatBtn.addEventListener('click', startNewChat);
+        if (newChatSidebar) {
+            newChatSidebar.addEventListener('click', startNewChat);
+        }
+        
+        // Handle therapist card selection
+        therapistCards.forEach(card => {
+            card.addEventListener('click', function() {
+                // Remove selected class from all cards
+                therapistCards.forEach(c => c.classList.remove('selected'));
+                
+                // Add selected class to clicked card
+                this.classList.add('selected');
+                
+                // Update hidden input
+                selectedTherapist.value = this.getAttribute('data-therapist');
+                debug(`Therapist selected: ${selectedTherapist.value}`);
+            });
+        });
+        
+        // Handle appointment form submission
+        appointmentForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!selectedTherapist.value) {
+                alert('Please select a therapist');
+                return;
+            }
+            
+            debug('Submitting appointment form...');
+            
+            const formData = new FormData(this);
+            const appointment = Object.fromEntries(formData.entries());
+            
+            debug(`Appointment data: ${JSON.stringify(appointment)}`);
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/session/${sessionId}/therapist`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(appointment)
+                });
+                
+                debug(`Appointment response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Appointment request failed with status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                debug(`Appointment response: ${JSON.stringify(data)}`);
+                
+                if (data.status === 'success') {
+                    // Hide modal
+                    therapistModal.classList.add('hidden');
+                    
+                    // Add confirmation message
+                    addMessage('assistant', data.confirmation_message);
+                    
+                    // Reset form
+                    appointmentForm.reset();
+                    therapistCards.forEach(c => c.classList.remove('selected'));
+                    
+                    debug('Appointment booked successfully', 'success');
+                } else {
+                    debug(`Appointment error: ${data.message}`, 'error');
+                    alert(`Error: ${data.message}`);
+                }
+            } catch (error) {
+                console.error('Book appointment error:', error);
+                debug('Book appointment error: ' + error.message, 'error');
+                alert('Failed to book appointment. Please check your connection and try again.');
+            }
+        });
+        
+        // Handle close modal button
+        closeModal.addEventListener('click', function() {
+            therapistModal.classList.add('hidden');
+            debug('Therapist modal closed');
+        });
+        
+        // Continue chat button
+        continueChat.addEventListener('click', function() {
+            therapistModal.classList.add('hidden');
+            debug('Continue chat clicked, therapist modal closed');
+        });
+        
+        // Book therapist from sidebar
+        if (bookTherapistSidebar) {
+            bookTherapistSidebar.addEventListener('click', function() {
+                therapistModal.classList.remove('hidden');
+                debug('Therapist modal opened from sidebar');
+            });
+        }
+        
+        // Close modal when clicking outside
+        therapistModal.addEventListener('click', function(e) {
+            if (e.target === therapistModal) {
+                therapistModal.classList.add('hidden');
+                debug('Therapist modal closed (outside click)');
+            }
+        });
+        
+        // Attempt to recover a previous session from localStorage
+        const savedSessionId = localStorage.getItem('lumonmind_session_id');
+        if (savedSessionId) {
+            debug(`Found saved session ID: ${savedSessionId}`);
+            sessionId = savedSessionId;
+            
+            // Check if the session is still valid by making a test request
+            fetch(`${apiBaseUrl}/conversations/${sessionId}`)
+                .then(response => {
+                    if (response.ok) {
+                        debug('Saved session is valid', 'success');
+                        return response.json();
+                    } else {
+                        debug('Saved session is no longer valid', 'warning');
+                        // Create a new session
+                        createNewSession();
+                        throw new Error('Saved session is invalid');
+                    }
+                })
+                .then(data => {
+                    // If there are messages, user is already onboarded
+                    if (data.messages && data.messages.length > 0) {
+                        // Show chat interface and hide onboarding
+                        onboardingScreen.classList.add('hidden');
+                        chatInterface.classList.remove('hidden');
+                        
+                        // Update user info in sidebar (fetch from first message if possible)
+                        if (data.messages[0] && data.messages[0].role === 'assistant') {
+                            const greeting = data.messages[0].content;
+                            const nameMatch = greeting.match(/Hi ([^,]+),/);
+                            
+                            if (nameMatch && nameMatch[1]) {
+                                userInfo.classList.remove('hidden');
+                                userWelcome.textContent = `Hello, ${nameMatch[1]}! 👋`;
+                                userLanguage.textContent = 'Language: English';
+                            }
+                        }
+                        
+                        // Show sidebar actions
+                        sidebarActions.classList.remove('hidden');
+                        
+                        // Add messages to chat
+                        data.messages.forEach(msg => {
+                            addMessage(msg.role, msg.content);
+                        });
+                        
+                        debug('Restored previous chat session', 'success');
+                    }
+                })
+                .catch(error => {
+                    console.error('Session recovery error:', error);
+                    debug('Session recovery error: ' + error.message, 'error');
+                });
+        }
+    </script>
+</body>
+</html>
